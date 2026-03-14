@@ -1,26 +1,25 @@
-name: Multi-OS Build Full
+name: SVG to PNG Converter Full Build
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches: [ main ]
+    tags: [ 'v*' ] # v1.0.0 などのタグをPushするとReleaseが作成される
+  workflow_dispatch: # 手動実行ボタン
 
 jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            artifact_name: svg-converter-win.exe
+            out_name: svg-converter-win.exe
           - os: macos-latest
-            artifact_name: svg-converter-mac
+            out_name: svg-converter-mac
           - os: ubuntu-latest
-            artifact_name: svg-converter-linux
+            out_name: svg-converter-linux
 
     steps:
       - uses: actions/checkout@v4
@@ -30,49 +29,60 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 【修正ポイント】Linuxビルドに必要なシステムライブラリ（cairoを追加）
-      - name: Install Linux Dependencies
+      # --- 各OS固有の依存関係インストール ---
+      - name: Install System Dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-tk libcairo2-dev pkg-config python3-dev
 
-      - name: Install Libraries
+      - name: Install System Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cairo pkg-config
+
+      # --- Pythonライブラリインストール ---
+      - name: Install Python Libraries
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          # 依存関係の順序を整理してインストール
-          pip install reportlab 
-          pip install svglib pyinstaller
+          pip install pkgconfig
+          pip install reportlab svglib pyinstaller
 
+      # --- ビルド実行 ---
       - name: Build Executable
         shell: bash
         run: |
-          # GUIアプリとしてビルド
-          pyinstaller --noconsole --onefile --name "${{ matrix.artifact_name }}" main.py
+          # --noconsole: GUIアプリとしてビルド（背後で黒い画面を出さない）
+          # --onefile: 全てを1つの実行ファイルにまとめる
+          pyinstaller --noconsole --onefile --name "${{ matrix.out_name }}" main.py
 
-      - name: Upload to Artifacts
+      # --- 中間成果物のアップロード ---
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.artifact_name }}
+          name: ${{ matrix.out_name }}
+          path: dist/${{ matrix.out_name }}
 
   release:
-    name: Create Release
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    # タグ（v1.0.0など）がPushされた時のみ実行
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
-      contents: write
+      contents: write # リリース作成権限
     steps:
-      - name: Download Artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./bin
+          path: ./release-binaries
           merge-multiple: true
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
-          files: ./bin/*
+          files: ./release-binaries/*
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
