@@ -1,34 +1,49 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
-from svglib.svglib import svg2rlg
-from reportlab.graphics import renderPM
+import cairosvg
 
 def convert_svg():
+    # ファイル選択ダイアログ
     file_path = filedialog.askopenfilename(
         title="SVGファイルを選択",
-        filetypes=[("SVG files", "*.svg")]
+        filetypes=[("SVG files", "*.svg"), ("All files", "*.*")]
     )
     if not file_path:
         return
 
     try:
-        # 入力ファイルと同じ場所に .png で保存
-        output_path = os.path.splitext(file_path)[0] + ".png"
+        # 出力パスの作成 (元のファイル名.png)
+        base, _ = os.path.splitext(file_path)
+        output_path = f"{base}.png"
         
-        drawing = svg2rlg(file_path)
-        renderPM.drawToFile(drawing, output_path, fmt="PNG")
+        # 変換実行
+        # url: 入力ファイルパス, write_to: 出力ファイルパス
+        cairosvg.svg2png(url=file_path, write_to=output_path)
         
-        messagebox.showinfo("完了", f"変換成功！\n{output_path}")
+        messagebox.showinfo("成功", f"変換が完了しました！\n保存先: {output_path}")
     except Exception as e:
-        messagebox.showerror("エラー", f"失敗しました:\n{e}")
+        # エラーの詳細を表示
+        messagebox.showerror("エラー", f"変換に失敗しました:\n{str(e)}")
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
-    root.title("SVG to PNG")
-    root.geometry("300x150")
+    root.title("SVG to PNG Converter")
+    root.geometry("400x200")
+    
+    label = tk.Label(root, text="SVGを高品質なPNGに変換します", font=("Arial", 11), pady=30)
+    label.pack()
 
-    tk.Label(root, text="SVGをPNGに一発変換", pady=20).pack()
-    tk.Button(root, text="ファイルを選択", command=convert_svg, bg="#0078d4", fg="white", width=20).pack()
+    btn = tk.Button(
+        root, text="SVGファイルを選択して変換", 
+        command=convert_svg, 
+        width=30, height=2, 
+        bg="#0078d4", fg="white",
+        font=("Arial", 10, "bold")
+    )
+    btn.pack()
 
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
