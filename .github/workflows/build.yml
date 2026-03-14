@@ -1,12 +1,12 @@
-name: Multi-OS Build
+name: Multi-OS Build Full
 
 on:
   push:
     branches:
-      - main  # mainにpushしただけでビルド開始
+      - main
     tags:
-      - 'v*'  # v1.0などのタグpushでも開始
-  workflow_dispatch: # ボタンでも実行可能
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,11 +16,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: converter-win.exe
+            artifact_name: svg-converter-win.exe
           - os: macos-latest
-            artifact_name: converter-mac
+            artifact_name: svg-converter-mac
           - os: ubuntu-latest
-            artifact_name: converter-linux
+            artifact_name: svg-converter-linux
 
     steps:
       - uses: actions/checkout@v4
@@ -30,20 +30,24 @@ jobs:
         with:
           python-version: '3.10'
 
-      # Linux用GUIライブラリ（これがないとubuntuで落ちる）
+      # 【修正ポイント】Linuxビルドに必要なシステムライブラリ（cairoを追加）
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk
+          sudo apt-get install -y python3-tk libcairo2-dev pkg-config python3-dev
 
       - name: Install Libraries
         run: |
-          pip install svglib reportlab pyinstaller
+          python -m pip install --upgrade pip
+          # 依存関係の順序を整理してインストール
+          pip install reportlab 
+          pip install svglib pyinstaller
 
       - name: Build Executable
         shell: bash
         run: |
+          # GUIアプリとしてビルド
           pyinstaller --noconsole --onefile --name "${{ matrix.artifact_name }}" main.py
 
       - name: Upload to Artifacts
@@ -56,7 +60,7 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') # タグ時のみRelease作成
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
